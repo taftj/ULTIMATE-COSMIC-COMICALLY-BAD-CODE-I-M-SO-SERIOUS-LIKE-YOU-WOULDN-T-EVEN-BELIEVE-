@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <limits.h>
 
+
 #include "C:\StellarisWare\inc\hw_ints.h"
 #include "C:\StellarisWare\inc\hw_memmap.h"
 #include "C:\StellarisWare\inc\hw_types.h"
@@ -27,10 +28,7 @@
 #include "queue.h"
 #include "lcd_message.h"
 
-
-
 #include "hw_sysctl.h"
-
 
 #include "grlib.h"
 
@@ -43,39 +41,85 @@
 #define TASK_SELECT             4
 #define HIGH                    TRUE
 #define LOW                     FALSE
-#define SOUND_ENABLE            1
+#define SOUND_ENABLE            0
 
 #define PORT_DATA               (GPIO_PIN_0 | GPIO_PIN_1 | GPIO_PIN_2 | GPIO_PIN_3 | GPIO_PIN_4 | GPIO_PIN_5 | GPIO_PIN_6 | GPIO_PIN_7)  // full 8 bits of port used
+#define PITCH                   100
+#define END                     -1
+
+//NOTES - http://processors.wiki.ti.com/index.php/Playing_The_Imperial_March
+
+#define c                       261
+#define d                       294
+#define e                       329
+#define f                       349
+#define g                       391
+#define gS                      415
+#define a                       440
+#define aS                      455
+#define b                       466
+#define cH                      523
+#define cSH                     554
+#define dH                      587
+#define dSH                     622
+#define eH                      659
+#define fH                      698
+#define fSH                     740
+#define gH                      784
+#define gSH                     830
+#define aH                      880
+
+//DIRECTIONS
+#define NONE                    -1
+#define NORTH                   0
+#define EAST                    1
+#define SOUTH                   2
+#define WEST                    3
 
 //PRIMITIVE TYPE DEFINITION
 typedef enum {FALSE = 0, TRUE = 1} bool;
 
+//STRUCT DEFINITIONS
+typedef struct {
+  bool present;
+  int fromDirection;
+  int toDirection;
+  int size;
+  int traversalTime;
+  unsigned int passengerCount;
+  long brakeTemp;
+} train;
 
 //SEMAPHORE FUN LAND
-extern bool TrainComActive;
-extern bool SwitchConActive;
-extern bool CurrentTrainActive;
-//extern bool SerialComActive;
-
 
 //GLOBAL VARIABLE DECLARATIONS
-
-
 extern unsigned int tempCount;
 extern unsigned int frequencyCount;
-extern unsigned int TimerState;
 extern unsigned int TrainState;
 extern int seed;
-
-extern unsigned long brakeTemp;
-extern bool brakeHighTemp;
-
+extern unsigned long *soundScriptTiming, *soundScriptPitch;
+extern unsigned long lifeIsTooHard;
 extern xQueueHandle xOLEDQueue;
+
+extern train *trainIndex;
+extern bool trackOverload;
+
+extern unsigned int globalCount;
+  
+extern bool outputSetup;
+extern bool playScript;
+
+extern int randd;
+
+extern train nullTrain;
+extern train train1;
+extern train train2;
+
+extern unsigned int tempEmergency;
+
 
 //FUNCTION PROTOTYPES
 extern void Startup(void);
-/*TOM RTOS STUFF
-*/
 
 //we'll need these TaskHandles to suspend/resume tasks later
 
@@ -85,17 +129,15 @@ extern  xTaskHandle vCurrentTrain;
 extern  xTaskHandle vSerialCom;
 extern  xTaskHandle vSchedule;
 extern xTaskHandle vBrakeTemp;
-//extern int getStackSize(void);
-//extern void popFromStack(void);
-//extern void Schedule(void);
 
 extern void TrainCom(void *vParameters);
 extern void CurrentTrain(void *vParameters);
 extern void SwitchControl(void *vParameters);
 extern void SerialCom(void *vParameters);
+extern void songTrial(void);
 
 extern void IntTimer0(void);
-extern int randomInteger(int a, int b);
+extern int randomInteger(int lowNum, int highNum);
 extern void IntGPIOe(void);
 extern void IntGPIOf(void);
 
@@ -104,47 +146,8 @@ extern void UARTSend(const unsigned char *pucBuffer, unsigned long ulCount);
 
 extern void BrakeTemp(void *vParameters);
 extern void pin(bool);
+extern void Sound(void *vParameters);
+extern void Display(void *vParameters);
 //END FUNCTION PROTOTYPES
 
-//END GLOBAL VARIABLE DECLARATIONS
-
-//STRUCT DEFINITIONS
- 
-extern bool north;
-extern bool east;
-extern bool west;
-extern bool south;
-//extern bool gridlock;
-extern bool trainPresent;
-extern bool trainComComplete;
-extern bool currentTrainComplete;
-extern bool switchConComplete;
-extern unsigned char fromDirection;
-extern double passengerCount;
-extern unsigned int globalCount;
-extern unsigned int trainSize;
-extern unsigned int traversalTime;
-extern unsigned int gridlockTime;
-extern unsigned int startTime;
-
-extern unsigned int direction;
-
-extern bool toggleNorth;
-extern bool toggleSouth;
-extern bool toggleWest;
-extern bool toggleEast;
-  
-extern unsigned int brightness;
-extern unsigned int flashCount;
-extern unsigned int noiseCount;
-
-extern int randd;
-extern bool firstCycle;
-extern unsigned int brightness;
-extern unsigned int startTime;
-
-extern unsigned int trainCount;
-extern unsigned int waterWeasel;
-
 #endif
-//END STRUCT DEFINITIONS
