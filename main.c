@@ -93,7 +93,7 @@ and the TCP/IP stack together cannot be accommodated with the 32K size limit. */
 
 //  set this value to non 0 to include the web server
 
-#define mainINCLUDE_WEB_SERVER		0
+#define mainINCLUDE_WEB_SERVER		1
 
 
 /* Standard includes. */
@@ -109,7 +109,7 @@ and the TCP/IP stack together cannot be accommodated with the 32K size limit. */
 /* Demo app includes. */
 
 
-#include "bitmap.h"
+//#include "bitmap.h"
 
 
 /*-----------------------------------------------------------*/
@@ -193,38 +193,16 @@ extern void vSetupHighFrequencyTimer( void );
 void vApplicationStackOverflowHook( xTaskHandle *pxTask, signed portCHAR *pcTaskName );
 void vApplicationTickHook( void );
 
-bool TrainComActive = FALSE;
-bool SwitchConActive = FALSE;
-bool CurrentTrainActive = FALSE;
-
-
+bool playScript = FALSE;
 void ScheduleFaceCommander(void *vParameters);
 /*START GLOBAL VARIABLES*/
 
 unsigned int globalCount = 0;
-bool north = FALSE;
-bool east = FALSE;
-bool west = FALSE;
-bool south = FALSE;
-//bool gridlock = FALSE;
-bool trainPresent = FALSE;
-bool trainComComplete = FALSE;
-bool currentTrainComplete = FALSE;
-bool switchConComplete = FALSE;
-unsigned char fromDirection = 'X';
-double passengerCount = 0.0;
-//unsigned int globalCount = 0;
-unsigned int trainSize = 0;
-unsigned int traversalTime = 0;
-unsigned int gridlockTime = 0;
-unsigned int startTime = 0;
 
-unsigned int direction = 0;
+unsigned long *soundScriptTiming = NULL;
+unsigned long *soundScriptPitch = NULL;
 
-bool toggleNorth = FALSE;
-bool toggleSouth = FALSE;
-bool toggleWest = FALSE;
-bool toggleEast = FALSE;
+bool trackOverload = FALSE;
 
 unsigned int brightness = 0;
 unsigned int flashCount = 0;
@@ -232,21 +210,21 @@ unsigned int noiseCount = 0;
 
 //extern int rand;
 int randd = 0;
-bool firstCycle = TRUE;
-
-//unsigned int startTime = 0;  
+unsigned long lifeIsTooHard = 0;
+bool outputSetup = FALSE;
 
 unsigned int tempCount = 0;
 unsigned int frequencyCount = 0;
-unsigned int TimerState = 0;
 unsigned int TrainState = 0;
 int seed = 1;
 
 unsigned long brakeTemp = 0;
-bool brakeHighTemp = FALSE;
 
-unsigned int trainCount = 0;
-unsigned int waterWeasel = 0;
+train *trainIndex = &nullTrain;
+train nullTrain = {FALSE, NONE, NONE, NONE, NONE, NONE, NONE};
+train train1 = {FALSE, NONE, NONE, NONE, NONE, NONE, NONE};
+train train2 = {FALSE, NONE, NONE, NONE, NONE, NONE, NONE};
+
 /*END GLOBAL VARIABLES*/
 
 /*-----------------------------------------------------------*/
@@ -266,12 +244,17 @@ xQueueHandle xOLEDQueue;
 *************************************************************************/
 
 //we'll need these handles to do the resume/pause stuff later
+
+
+
 xTaskHandle vTrainCom;
 xTaskHandle vSwitchCon;
 xTaskHandle vCurrentTrain;
 xTaskHandle vSerialCom;
 xTaskHandle vSchedule;
 xTaskHandle vBrakeTemp;
+xTaskHandle vSound;
+xTaskHandle vDisplay;
 
 int main( void )
 {
@@ -279,16 +262,12 @@ int main( void )
   prvSetupHardware();
   Startup();
   
-  
-  
-  
   /*  
   Create the queue used by the OLED task.  Messages for display on the OLED
   are received via this queue. 
   */
   
   xOLEDQueue = xQueueCreate( mainOLED_QUEUE_SIZE, sizeof( xOLEDMessage ) );
-  
   
   /* 
   Exclude some tasks if using the kickstart version to ensure we stay within
@@ -307,21 +286,19 @@ int main( void )
     }
   }
 #endif
-
   
   /* Start the tasks */
   
   xTaskCreate( vOLEDTask, ( signed portCHAR * ) "OLED", mainOLED_TASK_STACK_SIZE, NULL, tskIDLE_PRIORITY, NULL );
   
   xTaskCreate(TrainCom, "TrainCom", 256, NULL, 2, &vTrainCom);
-  xTaskCreate(SwitchCon, "SwitchControl",256,NULL, 2, &vSwitchCon);
+  xTaskCreate(SwitchControl, "SwitchControl",256,NULL, 2, &vSwitchCon);
   xTaskCreate(CurrentTrain,"CurrentTrain",256,NULL,2,&vCurrentTrain);
-  xTaskCreate(SerialCom,"SerialCom",256,NULL,2,&vSerialCom);
+  //xTaskCreate(SerialCom,"SerialCom",256,NULL,2,&vSerialCom);
   xTaskCreate(ScheduleFaceCommander,"ScheduleFaceCommander",256,NULL,1,&vSchedule);
   xTaskCreate(BrakeTemp,"BrakeTemp",256,NULL,2,&vBrakeTemp);
-  vTaskSuspend(vSwitchCon);
-  vTaskSuspend(vCurrentTrain);
-  
+  xTaskCreate(Sound,"Sound",256,NULL,2,&vSound);
+  xTaskCreate(Display,"Display",256,NULL,2,&vDisplay);
   
   /* 
   Configure the high frequency interrupt used to measure the interrupt
@@ -337,119 +314,19 @@ int main( void )
   vTaskStartScheduler();
   
   /* Will only get here if there was insufficient memory to create the idle task. */
-  
-  
-  
-  
+
   return 0;
 }
 
-/*
-three dummy tasks
-*/
-
-
 void ScheduleFaceCommander(void *vParameters)
-{
-  xOLEDMessage xMessage;
-  xMessage.ulX = 60;
-  xMessage.ulY = 85;
-  xMessage.brightness = 15;
-  static unsigned int justinCrazy = 0;
-  volatile unsigned long ul;  
-  const char *T1Text = "Task 3 is running\n\r";
-  
-  char globalCountArray[10] = "          ";
-  
-  //xMessage.pcMessage = "Bon Jour, Task 3";
-  int i;
-  
-  xOLEDMessage timeTitle;
-  timeTitle.pcMessage = "Time: ";
-  timeTitle.ulX = 10;
-  timeTitle.ulY = 85;
-  timeTitle.brightness = 10;
-  xQueueSend( xOLEDQueue, &timeTitle, 0 );
-  xOLEDMessage flair1;
-  flair1.pcMessage = "Applehansontaft";
-  flair1.ulX = 10;
-  flair1.ulY = 10;
-  flair1.brightness = 10;
-  
-  xOLEDMessage flair2;
-  flair2.pcMessage = "Fail Freight";
-  flair2.ulX = 10;
-  flair2.ulY = 20;
-  flair2.brightness = 10;
-  
-  xQueueSend( xOLEDQueue, &flair1, 0 );
-  xQueueSend( xOLEDQueue, &flair2, 0 );
-  
-  xOLEDMessage tempTitle;
-  tempTitle.pcMessage = "Temp(C): ";
-  tempTitle.ulX = 10;
-  tempTitle.ulY = 75;
-  tempTitle.brightness = 12;
-  
-  xQueueSend( xOLEDQueue, &tempTitle, 0 );
-  
-  xOLEDMessage noBrakes;
-  noBrakes.ulX = 60;
-  noBrakes.ulY = 75;
-  noBrakes.brightness = 10;
-  
-  xOLEDMessage tempEmergency;
-  tempEmergency.pcMessage = "FIRE!     ";
-  tempEmergency.ulX = 85;
-  tempEmergency.ulY = 75;
-  tempEmergency.brightness = 15;
-
- /* xOLEDMessage xTCC;
-  xTCC.pcMessage = "TCC";
-  xTCC.ulX = 10;
-  xTCC.ulY = 90;
-  xTCC.brightness = 15;
-  
-  xOLEDMessage xSCC;
-  xSCC.pcMessage = "      SCC";
-  xSCC.ulX = 10;
-  xSCC.ulY = 90;
-  xSCC.brightness = 15;
-  
-  xOLEDMessage xCCC;
-  xCCC.pcMessage = "             CCC";
-  xCCC.ulX = 10;
-  xCCC.ulY = 90;
-  xCCC.brightness = 15;*/   
-  
+{     
   while(1)
   {
-    
-    //check flags
-    //fun fact: a task can be suspended whilst still running
-    //this causes fun crashes
-    if (trainComComplete){
-      //xQueueSend( xOLEDQueue, &xTCC, 0 );
-      vTaskSuspend(vTrainCom);
-      vTaskResume(vSwitchCon);
-      vTaskResume(vCurrentTrain);
-      trainComComplete=FALSE;
-    } 
-    
-    if (switchConComplete){
-      //xQueueSend( xOLEDQueue, &xSCC, 0 );
-      vTaskSuspend(vSwitchCon);
-      vTaskSuspend(vCurrentTrain);
-      vTaskResume(vTrainCom);
-      switchConComplete=FALSE;
-    }
     //get number of ticks
-    globalCount = (unsigned int) xTaskGetTickCount();
-    
-    
+    globalCount = (unsigned int) xTaskGetTickCount();    
     
     //convert current time to a char array format
-    justinCrazy = globalCount/1000;
+    /*justinCrazy = globalCount/1000;
     i = 8;
     while(justinCrazy > 0) {
       globalCountArray[i] = (justinCrazy%10) + 48;
@@ -472,6 +349,12 @@ void ScheduleFaceCommander(void *vParameters)
     if (brakeTemp < 4){
       brakeTempArray[0] = 32;
       brakeTempArray[1] = 32;
+      brakeTempArray[2] = 48;
+      brakeTempArray[3] = '\0';
+    }
+    if (brakeTemp == 329){
+      brakeTempArray[0] = 51;
+      brakeTempArray[1] = 51;
       brakeTempArray[2] = 48;
       brakeTempArray[3] = '\0';
     }
@@ -518,28 +401,15 @@ void ScheduleFaceCommander(void *vParameters)
     }
     
     if (brakeTemp < 200) tempEmergency.brightness = 0;
-      
     
-    xQueueSend( xOLEDQueue, &tempEmergency, 0);
-    
-    
-    
+    xQueueSend( xOLEDQueue, &tempEmergency, 0);*/
+  
     frequencyCount = tempCount;
     tempCount = 0;
     
-    xMessage.pcMessage = globalCountArray;
-    
-    // Send the message to the OLED gatekeeper for display. 
-    xQueueSend( xOLEDQueue, &xMessage, 0 );
-    //RIT128x96x4StringDraw(globalCountArray,10,10,15);
-    vTaskDelay(500);
+    vTaskDelay(10);
   }
 }
-
-
-/*
-the OLED Task
-*/
 
 void vOLEDTask( void *pvParameters )
 {
@@ -563,7 +433,7 @@ void vOLEDTask( void *pvParameters )
   vOLEDImageDraw = RIT128x96x4ImageDraw;
   vOLEDClear = RIT128x96x4Clear;
   ulMaxY = mainMAX_ROWS_96;
-  pucImage = pucBasicBitmap;
+  //pucImage = pucBasicBitmap;
   
   // Just for demo purposes.
   uxUnusedStackOnEntry = uxTaskGetStackHighWaterMark( NULL );
@@ -663,7 +533,7 @@ void IntGPIOf(void)
 {
   //Clear the interrupt to avoid continuously looping here
   GPIOPinIntClear(GPIO_PORTF_BASE, GPIO_PIN_3);
-  tempCount+=2;
+  tempCount+=100;
 }
 
 void pin(bool status) {
@@ -683,23 +553,5 @@ void IntGPIOe(void)
   TrainState=GPIOPinRead(GPIO_PORTE_BASE, 0xF );
   
   //Switches are normally-high, so flip the polarity of the results:
-  TrainState=TrainState^0xF;  //You should work out why and how this works!
-  
-  if(trainCount == 1) {
-    waterWeasel = TrainState^0xF;
-  }
+  TrainState=TrainState^0xF;
 }
-
-//stolen wholesale from professor's provided code
-
-
-/*
-void IntTimer0(void) {
-//Clear the interrupt to avoid continuously looping here
-TimerIntClear(TIMER1_BASE, TIMER_TIMA_TIMEOUT);
-
-TimerState = 1;
-
-return;
-}
-*/
